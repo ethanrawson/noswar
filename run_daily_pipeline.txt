@@ -1,0 +1,14 @@
+import subprocess
+import sys
+
+def run(cmd):
+    print(f"\n▶ {cmd}")
+    subprocess.check_call(cmd, shell=True)
+
+def main():
+    run("python .\\src\\build_poisson_features.txt")
+    run("python .\\src\\train_poisson_models.txt")
+    run("python .\\src\\simulate_slate.txt")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,59 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import PoissonRegressor
+import joblib
+import os
+
+IN_PATH = r".\results\poisson_features.csv"
+OUT_HOME = r".\results\poisson_home.joblib"
+OUT_AWAY = r".\results\poisson_away.joblib"
+OUT_FEATS = r".\results\poisson_feature_list.txt"
+
+FEATURES = [
+    "pct_diff",
+    "shots_for_diff_10",
+    "shots_against_diff_10",
+    "gf_diff_10",
+    "ga_diff_10",
+    "pp_pct_diff_10",
+    "home_ice",
+    "rest_diff",
+    "b2b_diff",
+]
+
+def main():
+    df = pd.read_csv(IN_PATH)
+
+    # Train only on games with targets
+    df = df[pd.notna(df["home_goals"]) & pd.notna(df["away_goals"])].copy()
+
+    X = df[FEATURES].fillna(0.0)
+    y_home = df["home_goals"].astype(float)
+    y_away = df["away_goals"].astype(float)
+
+    X_train, X_test, yh_train, yh_test = train_test_split(X, y_home, test_size=0.25, random_state=42)
+    _, _, ya_train, ya_test = train_test_split(X, y_away, test_size=0.25, random_state=42)
+
+    home_model = PoissonRegressor(alpha=0.001, max_iter=3000)
+    away_model = PoissonRegressor(alpha=0.001, max_iter=3000)
+
+    home_model.fit(X_train, yh_train)
+    away_model.fit(X_train, ya_train)
+
+    os.makedirs(r".\results", exist_ok=True)
+    joblib.dump(home_model, OUT_HOME)
+    joblib.dump(away_model, OUT_AWAY)
+
+    with open(OUT_FEATS, "w", encoding="utf-8") as f:
+        for c in FEATURES:
+            f.write(c + "\n")
+
+    print(f"✅ Saved: {OUT_HOME}")
+    print(f"✅ Saved: {OUT_AWAY}")
+    print("Coefficients (home goals):")
+    for name, coef in zip(FEATURES, home_model.coef_):
+        print(f"  {name}: {coef:.4f}")
+
+if __name__ == "__main__":
+    main()

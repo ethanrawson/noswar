@@ -1,0 +1,192 @@
+import os
+import math
+import mysql.connector
+import pandas as pd
+from collections import defaultdict
+
+DB_CONFIG = {
+    "host": "localhost",
+    "user": "nhl_user",
+    "password": "NHLrocks101",
+    "database": "nhl_model_v2",
+}
+
+MIN_GAMES_HISTORY = 10  # require BOTH teams have >= 10 prior games in season
+
+BASE_DIR = os.path.dirname(__file__)
+OUT_DIR = os.path.join(BASE_DIR, "..", "results")
+os.makedirs(OUT_DIR, exist_ok=True)
+
+def safe_float(x):
+    try:
+        if x is None:
+            return None
+        v = float(x)
+        if math.isnan(v):
+            return None
+        return v
+    except Exception:
+        return None
+
+def build_features():
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cur = conn.cursor(dictionary=True)
+
+    cur.execute("""
+    SELECT
+      h.game_id,
+      h.game_date,
+      h.season,
+      h.team_name AS home_team,
+      a.team_name AS away_team,
+      h.goals_for AS home_goals,
+      a.goals_for AS away_goals,
+      h.pre_game_point_pct AS home_pct,
+      a.pre_game_point_pct AS away_pct,
+      h.shots AS home_shots,
+      a.shots AS away_shots,
+      h.power_play_goals AS home_pp_g,
+      a.power_play_goals AS away_pp_g,
+      h.power_play_opportunities AS home_pp_opp,
+      a.power_play_opportunities AS away_pp_opp
+    FROM team_games h
+    JOIN team_games a ON a.game_id = h.game_id
+    WHERE h.is_home = 1
+      AND a.is_home = 0
+      AND h.goals_for IS NOT NULL
+      AND a.goals_for IS NOT NULL
+    ORDER BY h.season ASC, h.game_date ASC, h.game_id ASC
+    """)
+
+    games = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    # Season-to-date rolling stats (RESET each season)
+    games_played = defaultdict(int)
+    gf = defaultdict(int)
+    ga = defaultdict(int)
+    shots_for = defaultdict(int)
+
+    # PP for team
+    pp_goals = defaultdict(int)
+    pp_opps = defaultdict(int)
+
+    # PK for team = opponent PP results
+    pk_goals_allowed = defaultdict(int)
+    pk_opps = defaultdict(int)
+
+    current_season = None
+    rows = []
+
+    for g in games:
+        season = int(g["season"])
+        if current_season is None or season != current_season:
+            # reset per season
+            games_played.clear()
+            gf.clear()
+            ga.clear()
+            shots_for.clear()
+            pp_goals.clear()
+            pp_opps.clear()
+            pk_goals_allowed.clear()
+            pk_opps.clear()
+            current_season = season
+
+        home = g["home_team"]
+        away = g["away_team"]
+
+        hg = int(g["home_goals"])
+        ag = int(g["away_goals"])
+
+        home_pct = safe_float(g["home_pct"])
+        away_pct = safe_float(g["away_pct"])
+
+        # only create a row if both teams have enough history
+        if games_played[home] >= MIN_GAMES_HISTORY and games_played[away] >= MIN_GAMES_HISTORY:
+            home_gp = games_played[home]
+            away_gp = games_played[away]
+
+            # goal diff per game
+            home_avg_gd = (gf[home] - ga[home]) / home_gp
+            away_avg_gd = (gf[away] - ga[away]) / away_gp
+            gd_diff = home_avg_gd - away_avg_gd
+
+            # shots per game
+            home_avg_shots = shots_for[home] / home_gp
+            away_avg_shots = shots_for[away] / away_gp
+            shots_diff = home_avg_shots - away_avg_shots
+
+            # point% features
+            pct_diff = None
+            pct_ratio = None
+            if home_pct is not None and away_pct is not None:
+                pct_diff = home_pct - away_pct
+                denom = home_pct + away_pct
+                pct_ratio = (home_pct / denom) if denom and denom > 0 else None
+
+            # PP% (season-to-date)
+            home_pp_pct = (pp_goals[home] / pp_opps[home]) if pp_opps[home] > 0 else 0.0
+            away_pp_pct = (pp_goals[away] / pp_opps[away]) if pp_opps[away] > 0 else 0.0
+            pp_pct_diff = home_pp_pct - away_pp_pct
+
+            # PK% (season-to-date): 1 - (PP goals allowed / PP opps faced)
+            home_pk_pct = 1.0 - (pk_goals_allowed[home] / pk_opps[home]) if pk_opps[home] > 0 else 0.0
+            away_pk_pct = 1.0 - (pk_goals_allowed[away] / pk_opps[away]) if pk_opps[away] > 0 else 0.0
+            pk_pct_diff = home_pk_pct - away_pk_pct
+
+            rows.append({
+                "game_id": g["game_id"],
+                "game_date": g["game_date"],
+                "season": season,
+                "home_team": home,
+                "away_team": away,
+                "home_win": 1 if hg > ag else 0,
+
+                # features
+                "pct_diff": pct_diff,
+                "pct_ratio": pct_ratio,
+                "gd_diff": gd_diff,
+                "shots_diff": shots_diff,
+                "pp_pct_diff": pp_pct_diff,
+                "pk_pct_diff": pk_pct_diff,
+            })
+
+        # ---- Update rolling stats AFTER feature creation ----
+        games_played[home] += 1
+        games_played[away] += 1
+
+        gf[home] += hg
+        ga[home] += ag
+        gf[away] += ag
+        ga[away] += hg
+
+        hs = int(g["home_shots"]) if g["home_shots"] is not None else 0
+        aws = int(g["away_shots"]) if g["away_shots"] is not None else 0
+        shots_for[home] += hs
+        shots_for[away] += aws
+
+        # PP totals
+        h_ppg = int(g["home_pp_g"]) if g["home_pp_g"] is not None else 0
+        a_ppg = int(g["away_pp_g"]) if g["away_pp_g"] is not None else 0
+        h_ppo = int(g["home_pp_opp"]) if g["home_pp_opp"] is not None else 0
+        a_ppo = int(g["away_pp_opp"]) if g["away_pp_opp"] is not None else 0
+
+        pp_goals[home] += h_ppg
+        pp_opps[home] += h_ppo
+        pp_goals[away] += a_ppg
+        pp_opps[away] += a_ppo
+
+        # PK totals = opponent PP
+        pk_goals_allowed[home] += a_ppg
+        pk_opps[home] += a_ppo
+        pk_goals_allowed[away] += h_ppg
+        pk_opps[away] += h_ppo
+
+    df = pd.DataFrame(rows)
+    out_csv = os.path.join(OUT_DIR, "features.csv")
+    df.to_csv(out_csv, index=False)
+    print(f"✅ features.csv saved: {out_csv}  (rows={len(df):,})")
+
+if __name__ == "__main__":
+    build_features()

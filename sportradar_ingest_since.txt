@@ -1,0 +1,323 @@
+# Save as: C:\Users\ebr23e\Desktop\nhl-win-probability-model\src\sportradar_ingest_since.txt
+# Run:     python .\src\sportradar_ingest_since.txt
+#
+# Optimized for Sportradar trial limits:
+#   - QPS = 1  => we enforce >= 1.2s between ALL requests
+#   - Quota = 1000 => we avoid unnecessary calls (skip summaries for games already in DB)
+#
+# Notes:
+# - Requires your MySQL table `team_games` with PK (game_id, team_name, is_home)
+# - Stores game_id as Sportradar UUID string (varchar(36))
+# - Leaves pre_game_point_pct NULL; you fill it with update_recent_point_pct.txt afterward
+
+import time
+import datetime as dt
+import requests
+import mysql.connector
+
+# =========================
+# CONFIG (EDIT)
+# =========================
+API_KEY = "beUfhTP5Zvh3M9frhuplbeFu9z5h6bLoIaU8qj0r"   # <- paste your real key
+ACCESS_LEVEL = "trial"                       # trial / production
+LOCALE = "en"
+
+# How many calendar days to ingest per run
+DAYS_PER_RUN = 1
+
+# If DB is empty, start here
+FALLBACK_START_DATE = dt.date(2025, 12, 11)
+
+# Enforce QPS=1 (sleep at least this long after EVERY request)
+MIN_SECONDS_BETWEEN_CALLS = 1.6
+
+DB_CONFIG = {
+    "host": "localhost",
+    "user": "nhl_user",
+    "password": "NHLrocks101",
+    "database": "nhl_model_v2",
+}
+
+BASE = f"https://api.sportradar.com/nhl/{ACCESS_LEVEL}/v7/{LOCALE}"
+
+# =========================
+# RATE-LIMITED HTTP (FIXED)
+# =========================
+_last_call_ts = 0.0
+
+def _rate_limit_sleep():
+    global _last_call_ts
+    now = time.time()
+    elapsed = now - _last_call_ts
+    if elapsed < MIN_SECONDS_BETWEEN_CALLS:
+        time.sleep(MIN_SECONDS_BETWEEN_CALLS - elapsed)
+    _last_call_ts = time.time()
+
+def get_json(url: str, *, max_429_retries: int = 5):
+    """
+    Strict pacing + sensible cooldown on 429.
+    On repeated 429s we STOP so you can rerun later.
+    """
+    global _last_call_ts
+    params = {"api_key": API_KEY}
+
+    for attempt in range(1, max_429_retries + 1):
+        _rate_limit_sleep()
+        r = requests.get(url, params=params, timeout=30)
+
+        if r.status_code == 200:
+            return r.json()
+
+        if r.status_code == 429:
+            # Cooldown long enough to reset their throttle window
+            wait = 30 + (attempt * 15)   # 45s, 60s, 75s...
+            print(f"429 rate limited. Cooling down {wait}s... ({attempt}/{max_429_retries})")
+            time.sleep(wait)
+
+            # IMPORTANT: reset the timer so next call doesn't fire immediately after cooldown
+            _last_call_ts = 0.0
+            continue
+
+        if r.status_code == 403:
+            snippet = (r.text or "")[:200].replace("\n", " ")
+            raise RuntimeError(f"403 Authentication/Access error. Response starts: {snippet}")
+
+        r.raise_for_status()
+
+    raise RuntimeError("Too many 429s. Stopping now — rerun later.")
+# =========================
+# DB HELPERS
+# =========================
+def get_resume_start_date() -> dt.date:
+    """
+    Resume from the day AFTER the most recent game_date in your DB.
+    """
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cur = conn.cursor()
+    cur.execute("SELECT MAX(game_date) FROM team_games")
+    last = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+
+    if last is None:
+        return FALLBACK_START_DATE
+    return last + dt.timedelta(days=1)
+
+def game_already_loaded(cur, game_id: str) -> bool:
+    cur.execute("SELECT 1 FROM team_games WHERE game_id = %s LIMIT 1", (game_id,))
+    return cur.fetchone() is not None
+
+def upsert_team_game(cur, row: dict):
+    """
+    Inserts/updates minimal fields you reliably get from summary.
+    (You can extend later.)
+    """
+    sql = """
+    INSERT INTO team_games (
+      game_id, game_date, season, venue, attendance,
+      team_id, team_name, is_home, won,
+      shots, power_play_goals, power_play_opportunities,
+      goals_for, goals_against,
+      pre_game_point_pct
+    )
+    VALUES (
+      %(game_id)s, %(game_date)s, %(season)s, %(venue)s, %(attendance)s,
+      %(team_id)s, %(team_name)s, %(is_home)s, %(won)s,
+      %(shots)s, %(pp_g)s, %(pp_opp)s,
+      %(gf)s, %(ga)s,
+      %(pre_game_point_pct)s
+    )
+    ON DUPLICATE KEY UPDATE
+      venue=VALUES(venue),
+      attendance=VALUES(attendance),
+      won=VALUES(won),
+      shots=VALUES(shots),
+      power_play_goals=VALUES(power_play_goals),
+      power_play_opportunities=VALUES(power_play_opportunities),
+      goals_for=VALUES(goals_for),
+      goals_against=VALUES(goals_against);
+    """
+    cur.execute(sql, row)
+
+# =========================
+# PARSING HELPERS
+# =========================
+def _status(game_obj: dict) -> str:
+    return (game_obj.get("status") or "").strip().lower()
+
+def _is_final(status: str) -> bool:
+    return status in {"closed", "complete", "final"}
+
+def parse_team_stats(team_obj: dict):
+    """
+    Defensive parsing. Summary structures can vary slightly.
+    """
+    stats = team_obj.get("statistics") or {}
+
+    goals = team_obj.get("goals")
+    if goals is None:
+        goals = team_obj.get("points")
+
+    shots = stats.get("shots_on_goal")
+    if shots is None:
+        shots = stats.get("shots", 0)
+
+    pp_g = stats.get("powerplay_goals", 0)
+    pp_opp = stats.get("powerplay_opportunities", 0)
+
+    goals = int(goals) if goals is not None else None
+    shots = int(shots) if shots is not None else 0
+    pp_g = int(pp_g) if pp_g is not None else 0
+    pp_opp = int(pp_opp) if pp_opp is not None else 0
+
+    return goals, shots, pp_g, pp_opp
+
+# =========================
+# MAIN
+# =========================
+def main():
+    start_day = get_resume_start_date()
+    end_day = min(dt.date.today(), start_day + dt.timedelta(days=DAYS_PER_RUN - 1))
+
+    print(f"▶ Resuming from {start_day} through {end_day} (DAYS_PER_RUN={DAYS_PER_RUN}, QPS=1 enforced)")
+
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cur = conn.cursor()
+
+    inserted_rows = 0
+    skipped_not_final = 0
+    skipped_existing = 0
+    schedule_days = 0
+    summaries_fetched = 0
+
+    day = start_day
+    while day <= end_day:
+        schedule_days += 1
+        schedule_url = f"{BASE}/games/{day.year:04d}/{day.month:02d}/{day.day:02d}/schedule.json"
+
+        try:
+            sched = get_json(schedule_url)
+        except Exception as e:
+            print(f"[{day}] schedule error: {type(e).__name__}: {e}")
+            day += dt.timedelta(days=1)
+            continue
+
+        games = sched.get("games") or []
+        if not games:
+            day += dt.timedelta(days=1)
+            continue
+
+        for g in games:
+            game_id = g.get("id")
+            if not game_id:
+                continue
+
+            status = _status(g)
+            if not _is_final(status):
+                skipped_not_final += 1
+                continue
+
+            # Skip if already loaded (saves quota)
+            if game_already_loaded(cur, game_id):
+                skipped_existing += 1
+                continue
+
+            summary_url = f"{BASE}/games/{game_id}/summary.json"
+            try:
+                summary = get_json(summary_url)
+                summaries_fetched += 1
+            except Exception as e:
+                print(f"  game {game_id} summary error: {type(e).__name__}: {e}")
+                continue
+
+            # Meta
+            venue = None
+            if isinstance(summary.get("venue"), dict):
+                venue = summary["venue"].get("name")
+            attendance = summary.get("attendance")
+
+            # Season year
+            season_year = None
+            season_node = summary.get("season") or g.get("season")
+            if isinstance(season_node, dict):
+                season_year = season_node.get("year")
+            if season_year is None:
+                season_year = day.year
+
+            home = summary.get("home") or {}
+            away = summary.get("away") or {}
+
+            home_name = home.get("name")
+            away_name = away.get("name")
+            if not home_name or not away_name:
+                continue
+
+            home_goals, home_shots, home_ppg, home_ppo = parse_team_stats(home)
+            away_goals, away_shots, away_ppg, away_ppo = parse_team_stats(away)
+
+            if home_goals is None or away_goals is None:
+                continue
+
+            home_won = 1 if home_goals > away_goals else 0
+            away_won = 1 if away_goals > home_goals else 0
+
+            # Do NOT fill this here; keep NULL and run update_recent_point_pct.txt afterward
+            pre_game_point_pct = None
+
+            upsert_team_game(cur, {
+                "game_id": game_id,
+                "game_date": day,
+                "season": int(season_year),
+                "venue": venue,
+                "attendance": attendance,
+                "team_id": None,
+                "team_name": home_name,
+                "is_home": 1,
+                "won": home_won,
+                "shots": home_shots,
+                "pp_g": home_ppg,
+                "pp_opp": home_ppo,
+                "gf": home_goals,
+                "ga": away_goals,
+                "pre_game_point_pct": pre_game_point_pct,
+            })
+
+            upsert_team_game(cur, {
+                "game_id": game_id,
+                "game_date": day,
+                "season": int(season_year),
+                "venue": venue,
+                "attendance": attendance,
+                "team_id": None,
+                "team_name": away_name,
+                "is_home": 0,
+                "won": away_won,
+                "shots": away_shots,
+                "pp_g": away_ppg,
+                "pp_opp": away_ppo,
+                "gf": away_goals,
+                "ga": home_goals,
+                "pre_game_point_pct": pre_game_point_pct,
+            })
+
+            conn.commit()
+            inserted_rows += 2
+            print(f"[{day}] inserted game {game_id}: {away_name} @ {home_name}")
+
+        day += dt.timedelta(days=1)
+
+    cur.close()
+    conn.close()
+
+    print(
+        "✅ Done.\n"
+        f"  Rows inserted/updated: {inserted_rows}\n"
+        f"  Schedule days queried: {schedule_days}\n"
+        f"  Summaries fetched:     {summaries_fetched}\n"
+        f"  Skipped (not final):   {skipped_not_final}\n"
+        f"  Skipped (already DB):  {skipped_existing}\n"
+        f"  NOTE: Run update_recent_point_pct.txt after this to fill pre_game_point_pct."
+    )
+
+if __name__ == "__main__":
+    main()

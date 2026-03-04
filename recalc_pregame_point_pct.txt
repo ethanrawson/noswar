@@ -1,0 +1,72 @@
+import mysql.connector
+from collections import defaultdict
+
+DB_CONFIG = {
+    "host": "localhost",
+    "user": "nhl_user",
+    "password": "NHLrocks101",
+    "database": "nhl_model_v2",
+}
+
+def main():
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cur = conn.cursor(dictionary=True)
+
+    # Pull all rows in chronological order (per season)
+    cur.execute("""
+        SELECT game_id, game_date, season, team_name, is_home, won
+        FROM team_games
+        WHERE game_date IS NOT NULL AND season IS NOT NULL
+        ORDER BY season ASC, game_date ASC, game_id ASC, is_home DESC
+    """)
+    rows = cur.fetchall()
+
+    # Track points and games played per team per season
+    pts = defaultdict(int)
+    gp = defaultdict(int)
+
+    updates = []
+    current_season = None
+
+    for r in rows:
+        season = int(r["season"])
+        team = r["team_name"]
+        key = (season, team)
+
+        if current_season is None or season != current_season:
+            pts.clear()
+            gp.clear()
+            current_season = season
+
+        # pre-game point% = points / (2*games_played) BEFORE this game
+        pre_pct = None
+        if gp[key] > 0:
+            pre_pct = pts[key] / (2.0 * gp[key])
+        else:
+            pre_pct = None  # keep NULL for the very first game(s)
+
+        updates.append((pre_pct, r["game_id"], team, int(r["is_home"])))
+
+        # update after game using current row's outcome
+        # won=1 -> 2 points, won=0 -> 0 points (no OT info in this table)
+        # This is consistent with your dataset's "won" field
+        if r["won"] is not None:
+            pts[key] += 2 if int(r["won"]) == 1 else 0
+        gp[key] += 1
+
+    cur2 = conn.cursor()
+    cur2.executemany("""
+        UPDATE team_games
+        SET pre_game_point_pct = %s
+        WHERE game_id = %s AND team_name = %s AND is_home = %s
+    """, updates)
+    conn.commit()
+
+    print(f"✅ Updated pre_game_point_pct for {cur2.rowcount:,} rows")
+
+    cur2.close()
+    cur.close()
+    conn.close()
+
+if __name__ == "__main__":
+    main()

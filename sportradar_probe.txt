@@ -1,0 +1,18 @@
+import requests
+
+API_KEY = "PASTE_YOUR_SPORTRADAR_KEY_HERE"
+ACCESS_LEVEL = "trial"
+LOCALE = "en"
+
+BASE = f"https://api.sportradar.com/nhl/{ACCESS_LEVEL}/v7/{LOCALE}"
+
+TEST_URLS = [
+    f"{BASE}/league/hierarchy.json",
+    f"{BASE}/teams.json",
+    f"{BASE}/seasons.json",
+    f"{BASE}/games/2026/02/01/schedule.json",
+]
+
+for url in TEST_URLS:
+    r = requests.get(url, params={"api_key": API_KEY}, timeout=30)
+    print(r.status_code, url.split(BASE)[-1])

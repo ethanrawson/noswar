@@ -1,0 +1,87 @@
+import os
+import joblib
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
+
+BASE_DIR = os.path.dirname(__file__)
+OUT_DIR = os.path.join(BASE_DIR, "..", "results")
+os.makedirs(OUT_DIR, exist_ok=True)
+
+FEATURES = ["pct_diff","pct_ratio","gd_diff", "shots_diff", "pp_pct_diff", "pk_pct_diff"]
+TEST_MIN_SEASON = 2019
+
+def calibration_table(y_true, y_prob, n_bins=10):
+    df = pd.DataFrame({"y": y_true, "p": y_prob})
+    df["bin"] = pd.cut(df["p"], bins=[i/n_bins for i in range(n_bins+1)], include_lowest=True)
+    return (
+        df.groupby("bin", observed=True)
+          .agg(count=("y", "size"), avg_pred=("p", "mean"), win_rate=("y", "mean"))
+          .reset_index()
+    )
+
+def main():
+    df = pd.read_csv(os.path.join(OUT_DIR, "features.csv"))
+    df = df.dropna(subset=FEATURES + ["home_win", "season"])
+
+    model = joblib.load(os.path.join(OUT_DIR, "logreg_model.joblib"))
+
+    test = df[df["season"] >= TEST_MIN_SEASON].copy()
+    X_test = test[FEATURES]
+    y_test = test["home_win"].astype(int)
+
+    probs = model.predict_proba(X_test)[:, 1]
+
+    brier = brier_score_loss(y_test, probs)
+    ll = log_loss(y_test, probs)
+    auc = roc_auc_score(y_test, probs)
+
+    cal = calibration_table(y_test, probs, n_bins=10)
+
+    # calibration plot
+    plt.figure()
+    plt.plot(cal["avg_pred"], cal["win_rate"], marker="o")
+    plt.plot([0, 1], [0, 1])
+    plt.xlabel("Avg Predicted Prob")
+    plt.ylabel("Empirical Win Rate")
+    plt.title("Calibration Curve (Test 2019+)")
+    out_cal = os.path.join(OUT_DIR, "calibration_curve.png")
+    plt.tight_layout()
+    plt.savefig(out_cal, dpi=200)
+    plt.close()
+
+    # season-by-season brier
+    season_df = test.assign(p=probs)
+    season_brier = (
+        season_df.groupby("season", as_index=False)
+                 .apply(lambda g: brier_score_loss(g["home_win"].astype(int), g["p"]))
+                 .rename(columns={None: "brier"})
+    )
+    out_season = os.path.join(OUT_DIR, "season_brier.csv")
+    season_brier.to_csv(out_season, index=False)
+
+    # write summary
+    out_summary = os.path.join(OUT_DIR, "performance_summary.txt")
+    with open(out_summary, "w", encoding="utf-8") as f:
+        f.write("NHL Win Probability Model (LogReg + PP/PK)\n")
+        f.write("==========================================\n")
+        f.write(f"Test seasons: 2019+\n")
+        f.write(f"Rows: {len(test):,}\n\n")
+        f.write(f"Brier:   {brier:.6f}\n")
+        f.write(f"LogLoss: {ll:.6f}\n")
+        f.write(f"ROC-AUC: {auc:.6f}\n\n")
+        f.write("Calibration bins:\n")
+        f.write(cal.to_string(index=False))
+        f.write("\n\nSeason Brier:\n")
+        f.write(season_brier.to_string(index=False))
+        f.write("\n")
+
+    print(f"✅ Test Brier:   {brier:.6f}")
+    print(f"✅ Test LogLoss: {ll:.6f}")
+    print(f"✅ Test ROC-AUC: {auc:.6f}")
+    print(f"✅ Saved: {out_cal}")
+    print(f"✅ Saved: {out_season}")
+    print(f"✅ Saved: {out_summary}")
+
+if __name__ == "__main__":
+    main()

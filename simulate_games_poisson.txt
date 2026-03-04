@@ -1,0 +1,147 @@
+import numpy as np
+import pandas as pd
+import mysql.connector
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import PoissonRegressor
+
+DB_CONFIG = {
+    "host": "localhost",
+    "user": "nhl_user",
+    "password": "NHLrocks101",
+    "database": "nhl_model_v2",
+}
+
+N_SIMS = 50000
+TEST_SIZE = 0.25
+RANDOM_STATE = 42
+
+def load_data():
+    conn = mysql.connector.connect(**DB_CONFIG)
+    q = """
+    SELECT *
+    FROM v_game_pairs
+    WHERE home_shots IS NOT NULL AND away_shots IS NOT NULL
+    """
+    df = pd.read_sql(q, conn)
+    conn.close()
+    return df
+
+def add_features(df: pd.DataFrame) -> pd.DataFrame:
+    # Avoid division by zero
+    df["home_pp_pct"] = df["home_ppg"] / df["home_ppo"].replace({0: np.nan})
+    df["away_pp_pct"] = df["away_ppg"] / df["away_ppo"].replace({0: np.nan})
+
+    # Simple, strong features
+    df["pct_diff"] = df["home_pregame_pct"] - df["away_pregame_pct"]
+    df["shots_diff"] = df["home_shots"] - df["away_shots"]
+    df["pp_pct_diff"] = df["home_pp_pct"].fillna(0) - df["away_pp_pct"].fillna(0)
+
+    # Targets
+    df["total_goals"] = df["home_goals"] + df["away_goals"]
+    return df
+
+def train_poisson_models(df: pd.DataFrame):
+    feats = ["pct_diff", "shots_diff", "pp_pct_diff"]
+    X = df[feats].fillna(0)
+
+    y_home = df["home_goals"].astype(float)
+    y_away = df["away_goals"].astype(float)
+
+    X_train, X_test, yh_train, yh_test = train_test_split(
+        X, y_home, test_size=TEST_SIZE, random_state=RANDOM_STATE
+    )
+    _, _, ya_train, ya_test = train_test_split(
+        X, y_away, test_size=TEST_SIZE, random_state=RANDOM_STATE
+    )
+
+    home_model = PoissonRegressor(alpha=0.001, max_iter=2000)
+    away_model = PoissonRegressor(alpha=0.001, max_iter=2000)
+
+    home_model.fit(X_train, yh_train)
+    away_model.fit(X_train, ya_train)
+
+    # quick sanity: average predicted goals
+    home_pred = home_model.predict(X_test)
+    away_pred = away_model.predict(X_test)
+    print(f"Avg predicted home goals: {home_pred.mean():.3f}")
+    print(f"Avg predicted away goals: {away_pred.mean():.3f}")
+
+    return feats, home_model, away_model
+
+def simulate_matchup(home_team, away_team, feat_row, feats, home_model, away_model):
+    X = pd.DataFrame([feat_row], columns=feats).fillna(0)
+
+    lam_home = float(home_model.predict(X)[0])
+    lam_away = float(away_model.predict(X)[0])
+
+    # Safety clamps (prevents weird extreme lambdas)
+    lam_home = max(0.05, min(lam_home, 8.0))
+    lam_away = max(0.05, min(lam_away, 8.0))
+
+    hg = np.random.poisson(lam_home, size=N_SIMS)
+    ag = np.random.poisson(lam_away, size=N_SIMS)
+
+    # OT/SO handling (simple): if tied, split 50/50
+    home_win = (hg > ag).astype(int)
+    ties = (hg == ag)
+    home_win[ties] = (np.random.rand(ties.sum()) < 0.5).astype(int)
+
+    home_win_prob = home_win.mean()
+    total = hg + ag
+
+    out = {
+        "home_team": home_team,
+        "away_team": away_team,
+        "lambda_home": lam_home,
+        "lambda_away": lam_away,
+        "p_home_win": float(home_win_prob),
+        "p_over_5_5": float((total > 5.5).mean()),
+        "p_over_6_5": float((total > 6.5).mean()),
+        "p_under_5_5": float((total < 5.5).mean()),
+        "p_under_6_5": float((total < 6.5).mean()),
+    }
+
+    # Top 10 scorelines
+    scores = pd.DataFrame({"hg": hg, "ag": ag})
+    top = scores.value_counts().head(10).reset_index(name="count")
+    top["prob"] = top["count"] / N_SIMS
+    out["top_scores"] = top
+
+    return out
+
+def main():
+    df = load_data()
+    df = add_features(df)
+
+    feats, home_model, away_model = train_poisson_models(df)
+
+    # Example: simulate a matchup using latest available pregame features for each team
+    # We'll build a simple "today-like" matchup by taking each team's most recent row as home/away.
+    latest_home = df.sort_values("game_date").groupby("home_team").tail(1)
+    latest_away = df.sort_values("game_date").groupby("away_team").tail(1)
+
+    # Pick two teams to demo
+    home_team = latest_home.iloc[-1]["home_team"]
+    away_team = latest_away.iloc[-1]["away_team"]
+
+    feat_row = {
+        "pct_diff": float(latest_home.iloc[-1]["home_pregame_pct"] - latest_away.iloc[-1]["away_pregame_pct"]),
+        "shots_diff": float(latest_home.iloc[-1]["home_shots"] - latest_away.iloc[-1]["away_shots"]),
+        "pp_pct_diff": float((latest_home.iloc[-1]["home_ppg"] / max(1, latest_home.iloc[-1]["home_ppo"])) -
+                             (latest_away.iloc[-1]["away_ppg"] / max(1, latest_away.iloc[-1]["away_ppo"]))),
+    }
+
+    res = simulate_matchup(home_team, away_team, feat_row, feats, home_model, away_model)
+
+    print("\n=== Monte Carlo Game Simulation ===")
+    print(f"{res['away_team']} @ {res['home_team']}")
+    print(f"λ_home={res['lambda_home']:.3f}  λ_away={res['lambda_away']:.3f}")
+    print(f"P(home win)={res['p_home_win']:.3f}")
+    print(f"P(over 5.5)={res['p_over_5_5']:.3f} | P(under 5.5)={res['p_under_5_5']:.3f}")
+    print(f"P(over 6.5)={res['p_over_6_5']:.3f} | P(under 6.5)={res['p_under_6_5']:.3f}")
+
+    print("\nTop 10 scorelines:")
+    print(res["top_scores"].to_string(index=False))
+
+if __name__ == "__main__":
+    main()

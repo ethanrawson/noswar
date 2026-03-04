@@ -1,0 +1,108 @@
+import mysql.connector
+import pandas as pd
+
+DB_CONFIG = {
+    "host": "localhost",
+    "user": "nhl_user",
+    "password": "NHLrocks101",
+    "database": "nhl_model_v2",
+}
+
+CSV_PATH = r"C:\Users\ebr23e\Desktop\nhl_data_extensive.csv"
+
+# All columns we intend to insert
+TARGET_COLS = [
+    "game_id","date","season","venue","attendance",
+    "team_id","team_name","is_home","won",
+    "spread","over_under","favourite_moneyline",
+    "season_series_summary","record_summary","record_losses","record_otl",
+    "referees","linesmen","num_officials",
+    "shots","power_play_goals","power_play_opportunities",
+    "faceoff_win_pct","hits","blocked_shots","pim",
+    "giveaways","takeaways",
+    "goals_for","goals_against","pre_game_point_pct"
+]
+
+def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    # common alternate spellings seen in datasets
+    rename_map = {
+        "favorite_moneyline": "favourite_moneyline",
+        "fav_moneyline": "favourite_moneyline",
+        "moneyline": "favourite_moneyline",
+        "game_date": "date",
+    }
+    df = df.rename(columns=rename_map)
+
+    # Ensure all needed columns exist; if not, add them as NULL
+    for c in TARGET_COLS:
+        if c not in df.columns:
+            df[c] = None
+
+    # Keep only what we insert (and in a consistent order)
+    return df[TARGET_COLS].copy()
+
+def main():
+    print("Loading CSV...")
+    df = pd.read_csv(CSV_PATH)
+    print(f"CSV loaded. Rows: {len(df):,}")
+
+    df = normalize_columns(df)
+
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cur = conn.cursor()
+
+    insert_sql = """
+    INSERT INTO team_games (
+        game_id, game_date, season, venue, attendance,
+        team_id, team_name, is_home, won,
+        spread, over_under, favourite_moneyline,
+        season_series_summary, record_summary, record_losses, record_otl,
+        referees, linesmen, num_officials,
+        shots, power_play_goals, power_play_opportunities,
+        faceoff_win_pct, hits, blocked_shots, pim,
+        giveaways, takeaways,
+        goals_for, goals_against, pre_game_point_pct
+    )
+    VALUES (
+        %(game_id)s, %(date)s, %(season)s, %(venue)s, %(attendance)s,
+        %(team_id)s, %(team_name)s, %(is_home)s, %(won)s,
+        %(spread)s, %(over_under)s, %(favourite_moneyline)s,
+        %(season_series_summary)s, %(record_summary)s, %(record_losses)s, %(record_otl)s,
+        %(referees)s, %(linesmen)s, %(num_officials)s,
+        %(shots)s, %(power_play_goals)s, %(power_play_opportunities)s,
+        %(faceoff_win_pct)s, %(hits)s, %(blocked_shots)s, %(pim)s,
+        %(giveaways)s, %(takeaways)s,
+        %(goals_for)s, %(goals_against)s, %(pre_game_point_pct)s
+    )
+    ON DUPLICATE KEY UPDATE
+        venue=VALUES(venue),
+        attendance=VALUES(attendance),
+        won=VALUES(won),
+        spread=VALUES(spread),
+        over_under=VALUES(over_under),
+        favourite_moneyline=VALUES(favourite_moneyline),
+        shots=VALUES(shots),
+        power_play_goals=VALUES(power_play_goals),
+        power_play_opportunities=VALUES(power_play_opportunities),
+        goals_for=VALUES(goals_for),
+        goals_against=VALUES(goals_against),
+        pre_game_point_pct=VALUES(pre_game_point_pct);
+    """
+
+    rows = df.to_dict(orient="records")
+
+    print("Inserting into database...")
+    for i, row in enumerate(rows, 1):
+        cur.execute(insert_sql, row)
+        if i % 5000 == 0:
+            conn.commit()
+            print(f"Inserted {i:,}/{len(rows):,} rows")
+
+    conn.commit()
+    print("✅ Kaggle data loaded into nhl_model_v2.team_games")
+
+    cur.close()
+    conn.close()
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,9 @@
+pct_diff
+shots_for_diff_10
+shots_against_diff_10
+gf_diff_10
+ga_diff_10
+pp_pct_diff_10
+home_ice
+rest_diff
+b2b_diff
