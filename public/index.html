@@ -92,6 +92,7 @@
     width:100%;aspect-ratio:1/1;background:linear-gradient(135deg,var(--blush),var(--tape2));
     display:flex;align-items:center;justify-content:center;color:var(--rose);font-size:.75rem;text-align:center;padding:.5rem;
   }
+  .photo-img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;}
   .entry .caption{margin-top:.6rem;font-size:.8rem;text-align:center;color:var(--ink);font-style:italic;}
   .entry .text{flex:1;}
   .entry .date{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--rose);margin-bottom:.3rem;}
@@ -155,12 +156,25 @@
     <div class="entry">
       <div class="polaroid">
         <div class="tape"></div>
-        <div class="photo-placeholder">add photo<br>here</div>
-        <div class="caption">Jan 2025</div>
+        <img class="photo-img" src="photos/01-before-official.jpg" alt="Ethan and Emely, October 4 2024" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+        <div class="photo-placeholder" style="display:none;">add photo<br>here</div>
+        <div class="caption">Oct 4, 2024</div>
       </div>
       <div class="text">
-        <div class="date">January 2025</div>
-        <p class="desc">Where it all began — replace this with the story of how the two of you got together.</p>
+        <div class="date">October 4, 2024 — Before it was official</div>
+        <p class="desc">I still remember this so vividly — asking if you wanted to take pictures together. It feels like so long ago now. Some of our first "couple" pics, even before we made it official.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="polaroid">
+        <div class="tape"></div>
+        <div class="photo-placeholder">add photo<br>here</div>
+        <div class="caption">Jan 19, 2025</div>
+      </div>
+      <div class="text">
+        <div class="date">January 19, 2025 — Made it official</div>
+        <p class="desc">Replace this with the story of the day you two made it official.</p>
       </div>
     </div>
 
