@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ethan &amp; Emely</title>
+<style>
+  :root{
+    --cream:#fdf6f0;
+    --blush:#f7d9dd;
+    --pink:#e88ea3;
+    --rose:#c9607a;
+    --deep:#7a3b4b;
+    --ink:#4a2e35;
+    --tape:#f5e6a8;
+    --tape2:#c9e4d8;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    font-family:Georgia,'Times New Roman',serif;
+    color:var(--ink);
+    background:
+      radial-gradient(circle at 15% 20%, rgba(247,217,221,.6), transparent 40%),
+      radial-gradient(circle at 85% 75%, rgba(201,228,216,.5), transparent 45%),
+      var(--cream);
+    overflow-x:hidden;
+  }
+  .script{font-family:'Brush Script MT','Segoe Script','Lucida Handwriting',cursive;}
+
+  /* floating hearts */
+  .hearts{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+  .heart{position:absolute;bottom:-10%;font-size:1.4rem;color:var(--pink);opacity:.55;animation:rise linear infinite;}
+  @keyframes rise{
+    0%{transform:translateY(0) rotate(0deg);opacity:0;}
+    10%{opacity:.6;}
+    100%{transform:translateY(-115vh) rotate(25deg);opacity:0;}
+  }
+
+  section{position:relative;z-index:1;padding:5rem 1.5rem;max-width:880px;margin:0 auto;}
+
+  /* HERO */
+  .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding-top:3rem;}
+  .hero .names{font-size:clamp(2.4rem,7vw,4.2rem);color:var(--rose);margin:0 0 .3rem;}
+  .hero .subtitle{font-size:1.15rem;letter-spacing:.04em;color:var(--deep);margin:0 0 2.2rem;text-transform:uppercase;font-family:Georgia,serif;font-size:.85rem;opacity:.8;}
+  .together-since{font-size:1rem;color:var(--deep);margin-bottom:2.5rem;}
+  .together-since strong{color:var(--rose);}
+
+  .countdown-label{font-size:1.4rem;margin-bottom:1.2rem;color:var(--ink);}
+  .countdown{display:flex;gap:.9rem;flex-wrap:wrap;justify-content:center;}
+  .countdown .box{
+    background:#fff;
+    border:1px solid var(--blush);
+    border-radius:14px;
+    padding:1rem 1.1rem;
+    min-width:78px;
+    box-shadow:0 8px 20px rgba(201,96,122,.12);
+  }
+  .countdown .num{display:block;font-size:2.1rem;font-weight:bold;color:var(--rose);font-family:Georgia,serif;}
+  .countdown .unit{display:block;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--deep);margin-top:.2rem;}
+  .celebrate{font-size:1.6rem;color:var(--rose);}
+
+  .scroll-hint{margin-top:3rem;font-size:.85rem;color:var(--deep);opacity:.6;}
+
+  h2.section-title{
+    text-align:center;
+    font-size:clamp(1.9rem,5vw,2.6rem);
+    color:var(--rose);
+    margin-bottom:2.5rem;
+  }
+
+  /* TIMELINE */
+  .timeline{position:relative;}
+  .timeline::before{
+    content:'';position:absolute;left:50%;top:0;bottom:0;width:2px;
+    background:repeating-linear-gradient(to bottom,var(--blush) 0 8px,transparent 8px 16px);
+    transform:translateX(-50%);
+  }
+  .entry{display:flex;align-items:center;gap:2rem;margin-bottom:3.5rem;position:relative;}
+  .entry:nth-child(even){flex-direction:row-reverse;}
+  .entry .polaroid{
+    background:#fff;padding:.8rem .8rem 2.2rem;box-shadow:0 10px 25px rgba(0,0,0,.12);
+    width:200px;flex-shrink:0;transform:rotate(-3deg);position:relative;
+  }
+  .entry:nth-child(even) .polaroid{transform:rotate(3deg);}
+  .entry .polaroid .tape{
+    position:absolute;top:-12px;left:50%;transform:translateX(-50%) rotate(-4deg);
+    width:60px;height:22px;background:var(--tape);opacity:.85;box-shadow:0 2px 4px rgba(0,0,0,.15);
+  }
+  .photo-placeholder{
+    width:100%;aspect-ratio:1/1;background:linear-gradient(135deg,var(--blush),var(--tape2));
+    display:flex;align-items:center;justify-content:center;color:var(--rose);font-size:.75rem;text-align:center;padding:.5rem;
+  }
+  .entry .caption{margin-top:.6rem;font-size:.8rem;text-align:center;color:var(--ink);font-style:italic;}
+  .entry .text{flex:1;}
+  .entry .date{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--rose);margin-bottom:.3rem;}
+  .entry .desc{margin:0;line-height:1.55;}
+
+  /* REASONS */
+  .reasons-list{list-style:none;padding:0;margin:0;display:grid;gap:1rem;}
+  .reasons-list li{
+    background:#fff;border-left:4px solid var(--pink);border-radius:6px;
+    padding:1rem 1.2rem;box-shadow:0 4px 14px rgba(201,96,122,.08);
+    line-height:1.5;
+  }
+  .reasons-list li::before{content:'♡ ';color:var(--rose);}
+  .reasons-note{text-align:center;color:var(--deep);opacity:.75;font-size:.85rem;margin-top:1.5rem;font-style:italic;}
+
+  /* LETTER */
+  .letter{
+    background:#fff;border-radius:10px;padding:2.5rem;box-shadow:0 10px 30px rgba(0,0,0,.08);
+    position:relative;
+  }
+  .letter::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:8px;
+    background:linear-gradient(90deg,var(--pink),var(--tape2));border-radius:10px 10px 0 0;
+  }
+  .letter p{line-height:1.8;margin:0 0 1rem;}
+  .letter .sign{text-align:right;font-size:1.8rem;color:var(--rose);margin-top:1.5rem;}
+
+  footer{text-align:center;padding:3rem 1.5rem 4rem;color:var(--deep);opacity:.6;font-size:.85rem;}
+
+  @media (max-width:640px){
+    .entry, .entry:nth-child(even){flex-direction:column;text-align:center;}
+    .timeline::before{left:20px;}
+    .entry .polaroid{transform:rotate(0deg)!important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="hearts" id="hearts"></div>
+
+<section class="hero">
+  <div class="script names">Ethan &amp; Emely</div>
+  <div class="subtitle">Our Anniversary</div>
+  <div class="together-since">Together since <strong>January 19, 2025</strong> · <span id="daysTogether">—</span> days and counting</div>
+
+  <div class="countdown-label">Counting down to July 19th</div>
+  <div class="countdown" id="countdown">
+    <div class="box"><span class="num" id="cd-days">--</span><span class="unit">Days</span></div>
+    <div class="box"><span class="num" id="cd-hours">--</span><span class="unit">Hours</span></div>
+    <div class="box"><span class="num" id="cd-min">--</span><span class="unit">Min</span></div>
+    <div class="box"><span class="num" id="cd-sec">--</span><span class="unit">Sec</span></div>
+  </div>
+
+  <div class="scroll-hint">↓ scroll for our story ↓</div>
+</section>
+
+<section id="story">
+  <h2 class="section-title script">Our Story So Far</h2>
+  <div class="timeline">
+
+    <div class="entry">
+      <div class="polaroid">
+        <div class="tape"></div>
+        <div class="photo-placeholder">add photo<br>here</div>
+        <div class="caption">Jan 2025</div>
+      </div>
+      <div class="text">
+        <div class="date">January 2025</div>
+        <p class="desc">Where it all began — replace this with the story of how the two of you got together.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="polaroid">
+        <div class="tape"></div>
+        <div class="photo-placeholder">add photo<br>here</div>
+        <div class="caption">First date</div>
+      </div>
+      <div class="text">
+        <div class="date">Early days</div>
+        <p class="desc">A favorite early memory — a first date, a funny mishap, whatever comes to mind first.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="polaroid">
+        <div class="tape"></div>
+        <div class="photo-placeholder">add photo<br>here</div>
+        <div class="caption">A trip / a night out</div>
+      </div>
+      <div class="text">
+        <div class="date">Somewhere in between</div>
+        <p class="desc">A trip you took together, a small adventure, or a night that's stuck with you.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="polaroid">
+        <div class="tape"></div>
+        <div class="photo-placeholder">add photo<br>here</div>
+        <div class="caption">A hard day, made easier</div>
+      </div>
+      <div class="text">
+        <div class="date">Through it together</div>
+        <p class="desc">A moment she showed up for you, or you for her — the stuff that makes it real.</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="polaroid">
+        <div class="tape"></div>
+        <div class="photo-placeholder">add photo<br>here</div>
+        <div class="caption">Lately</div>
+      </div>
+      <div class="text">
+        <div class="date">Recently</div>
+        <p class="desc">Something small and recent — an inside joke, a lazy Sunday, anything that feels like "you two."</p>
+      </div>
+    </div>
+
+    <div class="entry">
+      <div class="polaroid">
+        <div class="tape"></div>
+        <div class="photo-placeholder">add photo<br>here</div>
+        <div class="caption">July 19, 2026</div>
+      </div>
+      <div class="text">
+        <div class="date">Today</div>
+        <p class="desc">1 year and 6 months in, and still going. Here's to the next chapter.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section id="reasons">
+  <h2 class="section-title script">Reasons I Love You</h2>
+  <ul class="reasons-list">
+    <li>The way you laugh at your own jokes before you even finish telling them.</li>
+    <li>How you make even boring errands feel like an adventure.</li>
+    <li>Your ridiculous morning hair, which I will deny loving if asked.</li>
+    <li>How you remember the tiny details about my day that I forgot I even mentioned.</li>
+    <li>The fierce way you love the people — and pets — in your life.</li>
+    <li>Your terrible, wonderful singing in the car.</li>
+    <li>The way you say my name when you're proud of me.</li>
+    <li>How you always save me the last bite, even when you really don't want to.</li>
+    <li>Your stubbornness — yes, even when it drives me a little crazy.</li>
+    <li>How you make wherever we are feel like home.</li>
+    <li>The way you never let me take myself too seriously.</li>
+    <li>Every "I love you" you've said in the last year and a half — and the thousand more still to come.</li>
+  </ul>
+  <p class="reasons-note">(Edit this list — swap in the real, specific things you love about her.)</p>
+</section>
+
+<section id="letter">
+  <h2 class="section-title script">A Letter For You</h2>
+  <div class="letter">
+    <p>Emely,</p>
+    <p>Replace this paragraph with what you actually want to say to her. Talk about the last year and a half — what's surprised you, what you're grateful for, what you're looking forward to.</p>
+    <p>You don't have to be a writer for this to land. Just be honest.</p>
+    <p>Happy anniversary. Here's to July 19th, and every one after it.</p>
+    <div class="script sign">Ethan</div>
+  </div>
+</section>
+
+<footer>made with ♡ for our anniversary</footer>
+
+<script>
+  // ---- config ----
+  const TOGETHER_SINCE = new Date(2025, 0, 19); // Jan 19, 2025
+  const ANNIVERSARY = new Date(2026, 6, 19, 0, 0, 0); // July 19, 2026
+
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  function updateDaysTogether(){
+    const now = new Date();
+    const diff = now - TOGETHER_SINCE;
+    const days = Math.floor(diff / 86400000);
+    document.getElementById('daysTogether').textContent = days.toLocaleString();
+  }
+
+  function updateCountdown(){
+    const now = new Date();
+    const diff = ANNIVERSARY - now;
+    const el = document.getElementById('countdown');
+    if(diff <= 0){
+      el.innerHTML = '<div class="celebrate">🎉 Happy Anniversary! 🎉</div>';
+      return;
+    }
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    document.getElementById('cd-days').textContent = days;
+    document.getElementById('cd-hours').textContent = pad(hours);
+    document.getElementById('cd-min').textContent = pad(mins);
+    document.getElementById('cd-sec').textContent = pad(secs);
+  }
+
+  updateDaysTogether();
+  updateCountdown();
+  setInterval(updateCountdown, 1000);
+  setInterval(updateDaysTogether, 60000);
+
+  // floating hearts
+  (function(){
+    const container = document.getElementById('hearts');
+    const symbols = ['♡','❤','♥'];
+    for(let i=0;i<18;i++){
+      const h = document.createElement('div');
+      h.className = 'heart';
+      h.textContent = symbols[Math.floor(Math.random()*symbols.length)];
+      h.style.left = Math.random()*100 + 'vw';
+      h.style.animationDuration = (12 + Math.random()*14) + 's';
+      h.style.animationDelay = (Math.random()*14) + 's';
+      h.style.fontSize = (0.9 + Math.random()*1.3) + 'rem';
+      container.appendChild(h);
+    }
+  })();
+</script>
+
+</body>
+</html>
