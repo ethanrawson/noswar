@@ -2,7 +2,7 @@
   "name": "noswar-anniversary",
   "private": true,
   "scripts": {
-    "deploy": "wrangler pages deploy ."
+    "deploy": "wrangler deploy"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
