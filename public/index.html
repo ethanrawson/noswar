@@ -123,7 +123,8 @@
 
   /* GALLERY */
   .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.6rem;}
-  .gallery-grid img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,.12);transition:transform .2s;display:block;}
+  .gallery-grid img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,.12);transition:transform .2s,opacity .3s;display:block;opacity:0;}
+  .gallery-grid img.loaded{opacity:1;}
   .gallery-grid img:hover{transform:scale(1.03);}
 
   footer{text-align:center;padding:3rem 1.5rem 4rem;color:var(--deep);opacity:.6;font-size:.85rem;}
@@ -593,9 +594,10 @@
     const grid = document.getElementById('galleryGrid');
     for(let i=1;i<=30;i++){
       const img = document.createElement('img');
-      img.src = 'photos/gallery/photo' + i + '.jpg';
+      img.src = 'photos/photo' + i + '.jpg';
       img.alt = 'Ethan and Emely';
       img.loading = 'lazy';
+      img.onload = function(){ this.classList.add('loaded'); };
       img.onerror = function(){ this.remove(); };
       grid.appendChild(img);
     }
