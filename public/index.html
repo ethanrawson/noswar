@@ -63,6 +63,18 @@
 
   .scroll-hint{margin-top:3rem;font-size:.85rem;color:var(--deep);opacity:.6;}
 
+  /* Set to "block" when ready to reveal the rest of the site */
+  .reveal-later{display:none;}
+
+  .song-btn{
+    margin-top:2rem;background:#fff;border:1px solid var(--blush);border-radius:999px;
+    padding:.6rem 1.4rem;font-size:.9rem;color:var(--rose);cursor:pointer;
+    box-shadow:0 6px 16px rgba(201,96,122,.12);font-family:Georgia,serif;
+    display:inline-flex;align-items:center;gap:.5rem;transition:transform .15s;
+  }
+  .song-btn:hover{transform:scale(1.03);}
+  .song-btn .note{font-size:1.1rem;}
+
   h2.section-title{
     text-align:center;
     font-size:clamp(1.9rem,5vw,2.6rem);
@@ -154,10 +166,15 @@
     <div class="box"><span class="num" id="cd-sec">--</span><span class="unit">Sec</span></div>
   </div>
 
-  <div class="scroll-hint">↓ scroll for our story ↓</div>
+  <button class="song-btn" id="songBtn" type="button">
+    <span class="note">♪</span> <span id="songBtnLabel">Play Our Song</span>
+  </button>
+  <audio id="ourSong" src="song.mp3" loop preload="none"></audio>
+
+  <div class="scroll-hint reveal-later">↓ scroll for our story ↓</div>
 </section>
 
-<section id="story">
+<section id="story" class="reveal-later">
   <h2 class="section-title script">Our Story So Far</h2>
   <div class="timeline">
 
@@ -397,7 +414,7 @@
   </div>
 </section>
 
-<section id="reasons">
+<section id="reasons" class="reveal-later">
   <h2 class="section-title script">Reasons I Love You</h2>
   <ul class="reasons-list">
     <li>Your smile</li>
@@ -518,7 +535,7 @@
   <p class="reasons-note">Reasons not to love you: I couldn't find any.</p>
 </section>
 
-<section id="letter">
+<section id="letter" class="reveal-later">
   <h2 class="section-title script">A Letter For You</h2>
   <div class="letter">
     <p>Emely,</p>
@@ -529,7 +546,7 @@
   </div>
 </section>
 
-<section id="gallery">
+<section id="gallery" class="reveal-later">
   <h2 class="section-title script">A Few More Favorites</h2>
   <div class="gallery-grid" id="galleryGrid"></div>
 </section>
@@ -587,6 +604,23 @@
       h.style.fontSize = (0.9 + Math.random()*1.3) + 'rem';
       container.appendChild(h);
     }
+  })();
+
+  // our song
+  (function(){
+    const btn = document.getElementById('songBtn');
+    const label = document.getElementById('songBtnLabel');
+    const audio = document.getElementById('ourSong');
+    if(!btn || !audio) return;
+    btn.addEventListener('click', function(){
+      if(audio.paused){
+        audio.play();
+        label.textContent = 'Pause Our Song';
+      } else {
+        audio.pause();
+        label.textContent = 'Play Our Song';
+      }
+    });
   })();
 
   // gallery
