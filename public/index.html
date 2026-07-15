@@ -120,6 +120,11 @@
   .letter p{line-height:1.8;margin:0 0 1rem;}
   .letter .sign{text-align:right;font-size:1.8rem;color:var(--rose);margin-top:1.5rem;}
 
+  /* GALLERY */
+  .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.6rem;}
+  .gallery-grid img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,.12);transition:transform .2s;display:block;}
+  .gallery-grid img:hover{transform:scale(1.03);}
+
   footer{text-align:center;padding:3rem 1.5rem 4rem;color:var(--deep);opacity:.6;font-size:.85rem;}
 
   @media (max-width:640px){
@@ -521,6 +526,11 @@
   </div>
 </section>
 
+<section id="gallery">
+  <h2 class="section-title script">A Few More Favorites</h2>
+  <div class="gallery-grid" id="galleryGrid"></div>
+</section>
+
 <footer>made with ♡ for our anniversary</footer>
 
 <script>
@@ -573,6 +583,19 @@
       h.style.animationDelay = (Math.random()*14) + 's';
       h.style.fontSize = (0.9 + Math.random()*1.3) + 'rem';
       container.appendChild(h);
+    }
+  })();
+
+  // gallery
+  (function(){
+    const grid = document.getElementById('galleryGrid');
+    for(let i=1;i<=30;i++){
+      const img = document.createElement('img');
+      img.src = 'photos/gallery/photo' + i + '.jpg';
+      img.alt = 'Ethan and Emely';
+      img.loading = 'lazy';
+      img.onerror = function(){ this.remove(); };
+      grid.appendChild(img);
     }
   })();
 </script>
