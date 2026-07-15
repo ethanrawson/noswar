@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ethan &amp; Emely</title>
+<meta name="description" content="Happy Anniversary, Emely ♡">
+<meta property="og:title" content="Ethan &amp; Emely">
+<meta property="og:description" content="Happy Anniversary ♡">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90' fill='%23c9607a'%3E%E2%99%A1%3C/text%3E%3C/svg%3E">
 <style>
   :root{
     --cream:#fdf6f0;
@@ -65,6 +69,11 @@
 
   /* Set to "block" when ready to reveal the rest of the site */
   .reveal-later{display:none;}
+  /* Auto-unlocks on the anniversary date, see JS below */
+  body.unlocked .reveal-later{display:block;}
+
+  .confetti-piece{position:fixed;top:-20px;z-index:5;opacity:.95;pointer-events:none;animation:confetti-fall linear forwards;}
+  @keyframes confetti-fall{to{transform:translateY(110vh) rotate(720deg);opacity:.4;}}
 
   .song-btn{
     margin-top:2rem;background:#fff;border:1px solid var(--blush);border-radius:999px;
@@ -132,6 +141,20 @@
   .letter p{line-height:1.7;margin:0 0 1.3rem;}
   .letter p:last-of-type{margin-bottom:0;}
   .letter .sign{text-align:right;font-size:1.8rem;color:var(--rose);margin-top:1.5rem;}
+  .print-btn{
+    margin-top:1.8rem;background:#fff;border:1px solid var(--blush);border-radius:999px;
+    padding:.6rem 1.4rem;font-size:.9rem;color:var(--rose);cursor:pointer;
+    box-shadow:0 6px 16px rgba(201,96,122,.12);font-family:Georgia,serif;
+    display:inline-flex;align-items:center;gap:.5rem;transition:transform .15s;
+  }
+  .print-btn:hover{transform:scale(1.03);}
+
+  @media print{
+    body *{visibility:hidden;}
+    .letter, .letter *{visibility:visible;}
+    .letter{position:absolute;top:0;left:0;width:100%;box-shadow:none;border:none;}
+    .print-btn{display:none;}
+  }
 
   /* GALLERY */
   .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.6rem;}
@@ -544,6 +567,9 @@
     <p>Happy anniversary. Here's to July 19th, and every one after it.</p>
     <div class="script sign">Ethan ♡</div>
   </div>
+  <div style="text-align:center;">
+    <button class="print-btn" type="button" onclick="window.print()">🖨️ Save This Letter</button>
+  </div>
 </section>
 
 <section id="gallery" class="reveal-later">
@@ -567,12 +593,35 @@
     document.getElementById('daysTogether').textContent = days.toLocaleString();
   }
 
+  function fireConfetti(){
+    const colors = ['#e88ea3','#c9607a','#f5e6a8','#c9e4d8','#fdf6f0'];
+    for(let i=0;i<90;i++){
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = Math.random()*100 + 'vw';
+      piece.style.width = (6 + Math.random()*6) + 'px';
+      piece.style.height = (10 + Math.random()*8) + 'px';
+      piece.style.background = colors[Math.floor(Math.random()*colors.length)];
+      piece.style.animationDuration = (2.5 + Math.random()*2.5) + 's';
+      piece.style.animationDelay = (Math.random()*1.5) + 's';
+      document.body.appendChild(piece);
+      setTimeout(() => piece.remove(), 6000);
+    }
+  }
+
+  let hasCelebrated = false;
+
   function updateCountdown(){
     const now = new Date();
     const diff = ANNIVERSARY - now;
     const el = document.getElementById('countdown');
     if(diff <= 0){
       el.innerHTML = '<div class="celebrate">🎉 Happy Anniversary! 🎉</div>';
+      if(!hasCelebrated){
+        hasCelebrated = true;
+        document.body.classList.add('unlocked');
+        fireConfetti();
+      }
       return;
     }
     const days = Math.floor(diff / 86400000);
