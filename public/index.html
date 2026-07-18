@@ -639,6 +639,10 @@
   setInterval(updateCountdown, 1000);
   setInterval(updateDaysTogether, 60000);
 
+  // Doing the reveal now, ahead of the calendar date
+  document.body.classList.add('unlocked');
+  fireConfetti();
+
   // floating hearts
   (function(){
     const container = document.getElementById('hearts');
