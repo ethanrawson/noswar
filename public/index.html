@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ethan &amp; Emely</title>
-<meta name="description" content="Happy National Girlfriend Day, Emely ♡">
+<meta name="description" content="Happy 19 Months, Emely ♡">
 <meta property="og:title" content="Ethan &amp; Emely">
-<meta property="og:description" content="Happy National Girlfriend Day ♡">
+<meta property="og:description" content="Happy 19 Months ♡">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90' fill='%23c9607a'%3E%E2%99%A1%3C/text%3E%3C/svg%3E">
 <style>
   :root{
@@ -178,7 +178,7 @@
 
 <section class="hero">
   <div class="script names">Ethan &amp; Emely</div>
-  <div class="subtitle">Happy National Girlfriend Day</div>
+  <div class="subtitle">Happy 19 Months</div>
   <div class="together-since">Together since <strong>January 19, 2025</strong> · <span id="daysTogether">—</span> days and counting</div>
 
   <div class="countdown" id="countdown">
@@ -186,6 +186,14 @@
     <div class="box"><span class="num" id="cd-hours">--</span><span class="unit">Hours</span></div>
     <div class="box"><span class="num" id="cd-min">--</span><span class="unit">Min</span></div>
     <div class="box"><span class="num" id="cd-sec">--</span><span class="unit">Sec</span></div>
+  </div>
+
+  <div class="countdown-label">Until we start the semester together</div>
+  <div class="countdown" id="semesterCountdown">
+    <div class="box"><span class="num" id="sc-days">--</span><span class="unit">Days</span></div>
+    <div class="box"><span class="num" id="sc-hours">--</span><span class="unit">Hours</span></div>
+    <div class="box"><span class="num" id="sc-min">--</span><span class="unit">Min</span></div>
+    <div class="box"><span class="num" id="sc-sec">--</span><span class="unit">Sec</span></div>
   </div>
 
   <button class="song-btn" id="songBtn" type="button">
@@ -595,6 +603,7 @@
   // ---- config ----
   const TOGETHER_SINCE = new Date(2025, 0, 19); // Jan 19, 2025
   const ANNIVERSARY = new Date(2026, 6, 19, 0, 0, 0); // July 19, 2026
+  const SEMESTER_START = new Date(2026, 7, 22, 0, 0, 0); // Aug 22, 2026 (Saturday)
 
   function pad(n){ return String(n).padStart(2,'0'); }
 
@@ -628,7 +637,7 @@
     const diff = ANNIVERSARY - now;
     const el = document.getElementById('countdown');
     if(diff <= 0){
-      el.innerHTML = '<div class="celebrate">🎉 Happy National Girlfriend Day! 🎉</div>';
+      el.innerHTML = '<div class="celebrate">🎉 Happy 19 Months! 🎉</div>';
       if(!hasCelebrated){
         hasCelebrated = true;
         document.body.classList.add('unlocked');
@@ -646,9 +655,29 @@
     document.getElementById('cd-sec').textContent = pad(secs);
   }
 
+  function updateSemesterCountdown(){
+    const now = new Date();
+    const diff = SEMESTER_START - now;
+    const el = document.getElementById('semesterCountdown');
+    if(diff <= 0){
+      el.innerHTML = '<div class="celebrate">🎓 It\'s here! 🎓</div>';
+      return;
+    }
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    document.getElementById('sc-days').textContent = days;
+    document.getElementById('sc-hours').textContent = pad(hours);
+    document.getElementById('sc-min').textContent = pad(mins);
+    document.getElementById('sc-sec').textContent = pad(secs);
+  }
+
   updateDaysTogether();
   updateCountdown();
+  updateSemesterCountdown();
   setInterval(updateCountdown, 1000);
+  setInterval(updateSemesterCountdown, 1000);
   setInterval(updateDaysTogether, 60000);
 
   // Doing the reveal now, ahead of the calendar date
